@@ -1,122 +1,159 @@
 /**
- * @file      : file_handle.c
- * @brief     : Linux平台文件处理函数接口源文件
- * @author    : huenrong (huenrong1028@outlook.com)
- * @date      : 2023-01-18 11:23:07
+ * @file      file_handle.c
+ * @brief     Linux平台文件处理函数接口源文件
+ * @author    huenrong (huenrong1028@outlook.com)
+ * @date      2025-01-11 15:53:23
  *
- * @copyright : Copyright (c) 2023 huenrong
- *
- * @history   : date       author          description
- *              2023-01-16 huenrong        创建文件
+ * @copyright Copyright (c) 2025 huenrong
  *
  */
 
 #include <stdio.h>
+#include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "./file_handle.h"
+#include "file_handle.h"
 
-/**
- * @brief  执行命令并获取输出结果
- * @param  result: 输出参数, 命令输出结果
- * @param  cmd   : 输入参数, 待执行命令
- * @return true : 成功
- * @return false: 失败
- */
-static bool exec_cmd(char *result, const char *cmd)
+char *exec_cmd(const char *cmd)
 {
-    // 执行结果
-    char result_buf[1024] = {0};
-    FILE *ptr = NULL;
+    assert(cmd != NULL);
 
-    if ((!result) || (!cmd))
+    FILE *fp = popen(cmd, "r");
+    if (fp == NULL)
     {
-        return false;
+        return NULL;
     }
 
-    ptr = popen(cmd, "r");
-    if (NULL != ptr)
+    size_t total_len = 256; // 缓冲区总容量
+    size_t used_len = 0;    // 缓冲区已使用容量
+    char *result = (char *)malloc(total_len);
+    if (result == NULL)
     {
-        // 循环获取返回值, 一行一行的获取
-        while (NULL != fgets(result_buf, 1024, ptr))
+        pclose(fp);
+
+        return NULL;
+    }
+    result[0] = '\0';
+
+    char read_data[256] = "";
+    while (fgets(read_data, sizeof(read_data), fp) != NULL)
+    {
+        // 本次实际读取的长度
+        size_t read_len = strlen(read_data);
+
+        // 需要扩展缓冲区
+        size_t need_len = used_len + read_len + 1;
+        if (need_len > total_len)
         {
-            // 将当前行数据, 追加到目标buf
-            strcat(result, result_buf);
-
-            // 获取结果长度过长, 返回错误
-            if (strlen(result) > 1024)
+            size_t new_total_len = (total_len * 2 > need_len) ? total_len * 2 : need_len;
+            char *new_result = (char *)realloc(result, new_total_len);
+            if (new_result == NULL)
             {
-                pclose(ptr);
-                ptr = NULL;
+                free(result);
+                pclose(fp);
 
-                return false;
+                return NULL;
             }
+            result = new_result;
+            total_len = new_total_len;
         }
 
-        pclose(ptr);
-        ptr = NULL;
-
-        return true;
+        memcpy(result + used_len, read_data, read_len);
+        used_len += read_len;
     }
 
-    return false;
+    pclose(fp);
+    result[used_len] = '\0';
+
+    char *final_result = (char *)realloc(result, (used_len + 1));
+    if (final_result != NULL)
+    {
+        result = final_result;
+    }
+
+    return result;
 }
 
-/**
- * @brief  获取文件大小
- * @param  file_name: 输入参数, 待获取文件
- * @return 成功: 文件大小(单位: bytes)
- *         失败: -1
- */
-long int get_file_size(const char *file_name)
+bool get_file_size(uint32_t *file_size, const char *file_name)
 {
-    int ret = -1;
-    long int file_size = -1;
-    struct stat stat_buf = {0};
+    assert((file_size != NULL) && (file_name != NULL));
 
-    if (!file_name)
-    {
-        return -1;
-    }
-
-    ret = stat(file_name, &stat_buf);
-    if (0 != ret)
-    {
-        return -1;
-    }
-
-    file_size = stat_buf.st_size;
-
-    return file_size;
-}
-
-/**
- * @brief  计算文件md5校验
- * @param  file_md5 : 输出参数, 获取到的文件md5校验
- * @param  file_name: 输入参数, 待获取文件
- * @return true : 成功
- * @return false: 失败
- */
-bool get_file_md5(char *file_md5, const char *file_name)
-{
-    char cmd[256] = {0};
-    char result[256] = {0};
-
-    if ((!file_md5) || (!file_name))
+    struct stat file_stat = {0};
+    if (stat(file_name, &file_stat) != 0)
     {
         return false;
     }
 
-    snprintf(cmd, sizeof(cmd), "md5sum %s | cut -d \" \" -f1", file_name);
-    if (!exec_cmd(result, cmd))
+    *file_size = file_stat.st_size;
+
+    return true;
+}
+
+char *get_file_data(const char *file_name, const bool is_binary)
+{
+    assert(file_name != NULL);
+
+    uint32_t file_size = 0;
+    if (!get_file_size(&file_size, file_name))
+    {
+        return NULL;
+    }
+
+    FILE *fp = fopen(file_name, is_binary ? "rb" : "r");
+    if (fp == NULL)
+    {
+        return NULL;
+    }
+
+    char *file_data = (char *)malloc(file_size + 1);
+    if (file_data == NULL)
+    {
+        fclose(fp);
+
+        return NULL;
+    }
+
+    size_t ret = fread(file_data, 1, file_size, fp);
+    fclose(fp);
+    if (ret != file_size)
+    {
+        free(file_data);
+
+        return NULL;
+    }
+
+    if (!is_binary)
+    {
+        file_data[file_size] = '\0';
+    }
+
+    return file_data;
+}
+
+bool calc_file_md5(char *md5, const char *file_name)
+{
+    assert((md5 != NULL) && (file_name != NULL));
+
+    int cmd_len = 32 + strlen(file_name);
+    char *cmd = malloc(cmd_len + 1);
+    if (cmd == NULL)
     {
         return false;
     }
 
-    memcpy(file_md5, result, (strlen(result) - 1));
+    snprintf(cmd, cmd_len, "md5sum %s | awk '{print $1}'", file_name);
+    char *result = exec_cmd(cmd);
+    if (result == NULL)
+    {
+        return false;
+    }
+
+    memcpy(md5, result, (strlen(result) - 1));
+    free(result);
 
     return true;
 }

@@ -1,43 +1,68 @@
 /**
- * @file      : file_handle.h
- * @brief     : Linux平台文件处理函数接口头文件
- * @author    : huenrong (huenrong1028@outlook.com)
- * @date      : 2023-01-18 11:23:13
+ * @file      file_handle.h
+ * @brief     Linux平台文件处理函数接口头文件
+ * @author    huenrong (huenrong1028@outlook.com)
+ * @date      2025-01-11 15:51:06
  *
- * @copyright : Copyright (c) 2023 huenrong
- *
- * @history   : date       author          description
- *              2023-01-16 huenrong        创建文件
+ * @copyright Copyright (c) 2025 huenrong
  *
  */
 
 #ifndef __FILE_HANDLE_H
 #define __FILE_HANDLE_H
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
-
 /**
- * @brief  获取文件大小
- * @param  file_name: 输入参数, 待获取文件
- * @return 成功: 文件大小(单位: bytes)
- *         失败: -1
+ * @brief 执行命令并获取输出结果
+ *
+ * @param[in] cmd: 待执行命令
+ *
+ * @return 成功: 命令结果
+ * @return 失败: NULL
  */
-long int get_file_size(const char *file_name);
+char *exec_cmd(const char *cmd);
 
 /**
- * @brief  计算文件md5校验
- * @param  file_md5 : 输出参数, 获取到的文件md5校验
- * @param  file_name: 输入参数, 待获取文件
+ * @brief 获取文件大小
+ *
+ * @param[out] file_size: 文件大小
+ * @param[in]  file_name: 文件名
+ *
  * @return true : 成功
  * @return false: 失败
  */
-bool get_file_md5(char *file_md5, const char *file_name);
+bool get_file_size(uint32_t *file_size, const char *file_name);
+
+/**
+ * @brief 获取文件内容
+ *
+ * @param[in] file_name: 文件名
+ * @param[in] is_binary: 是否是二进制文件(true: 是)
+ *
+ * @return 成功: 文件内容
+ * @return 失败: NULL
+ */
+char *get_file_data(const char *file_name, const bool is_binary);
+
+/**
+ * @brief 计算文件MD5值
+ *
+ * @note 内部使用md5sum命令实现
+ *
+ * @param[out] md5      : MD5值
+ * @param[in]  file_name: 文件名
+ *
+ * @return true : 成功
+ * @return false: 失败
+ */
+bool calc_file_md5(char *md5, const char *file_name);
 
 #ifdef __cplusplus
 }
