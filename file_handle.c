@@ -139,7 +139,7 @@ bool calc_file_md5(char *md5, const char *file_name)
     assert((md5 != NULL) && (file_name != NULL));
 
     int cmd_len = 32 + strlen(file_name);
-    char *cmd = malloc(cmd_len + 1);
+    char *cmd = (char *)malloc(cmd_len + 1);
     if (cmd == NULL)
     {
         return false;
@@ -147,6 +147,7 @@ bool calc_file_md5(char *md5, const char *file_name)
 
     snprintf(cmd, cmd_len, "md5sum %s | awk '{print $1}'", file_name);
     char *result = exec_cmd(cmd);
+    free(cmd);
     if (result == NULL)
     {
         return false;
